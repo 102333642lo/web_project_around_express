@@ -1,65 +1,52 @@
-const fs = require('fs');
-const path = require('path');
 const express = require('express');
+const mongoose = require('mongoose');
 
 const app = express();
 const PORT = 3000;
 
-const usersPath = path.join(__dirname, 'data', 'users.json');
-const cardsPath = path.join(__dirname, 'data', 'card.json');
-
 const usersRouter = require('./routes/users');
 const cardsRouter = require('./routes/cards');
 
-const readJsonFile = (filePath) => new Promise((resolve, reject) => {
-  fs.readFile(filePath, 'utf8', (err, data) => {
-    if (err) {
-      reject(err);
-      return;
-    }
+app.use(express.json());
 
-    try {
-      resolve(JSON.parse(data));
-    } catch (error) {
-      reject(error);
-    }
+app.use((req, res, next) => {
+  req.user = {
+    _id: '6af1d9115ecffda05a57deca',
+  };
+
+  next();
+});
+
+app.use('/users', usersRouter);
+app.use('/cards', cardsRouter);
+
+app.use((req, res) => {
+  res.status(404).json({
+    message: 'Requested resource not found',
   });
 });
 
-Promise.all([
-  readJsonFile(usersPath),
-  readJsonFile(cardsPath),
-])
-  .then(([users, cards]) => {
-    app.locals.users = users;
-    app.locals.cards = cards;
+app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
 
-    app.use('/users', usersRouter);
-    app.use('/card', cardsRouter);
-    app.use('/cards', cardsRouter);
+  res.status(500).json({
+    message: 'An error has occurred on the server',
+  });
+});
 
-    app.use((req, res) => {
-      res.status(404).json({
-        message: 'Requested resource not found',
-      });
-    });
-
-    app.use((err, req, res, next) => {
-      if (res.headersSent) {
-        next(err);
-        return;
-      }
-
-      res.status(500).json({
-        message: 'An error has occurred on the server',
-      });
-    });
-
+const startServer = async () => {
+  try {
+    await mongoose.connect('mongodb://localhost:27017/aroundb');
+    console.log('Conectado a MongoDB');
     app.listen(PORT, () => {
       console.log(`Servidor escuchando en el puerto ${PORT}`);
     });
-  })
-  .catch((error) => {
-    console.error('Error al leer los archivos de datos:', error);
-    process.exitCode = 1;
-  });
+  } catch (error) {
+    console.error('Error al iniciar el servidor:', error);
+  }
+};
+
+startServer();
